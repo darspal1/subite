@@ -1,0 +1,31 @@
+# Archivos generados por Flutter y Dart
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+
+# Archivos de configuración de IDEs
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Archivos de compilación y específicos de la plataforma
+/android/app/src/main/assets/flutter_assets/
+/android/app/build/
+/android/build/
+/android/gradle/
+/android/.gradle/
+/android/gradlew
+/android/gradlew.bat
+/ios/Flutter/
+/linux/flutter/generated_plugins.cmake
+/macos/Flutter/GeneratedPluginRegistrant.swift
+/windows/flutter/generated_plugins.cmake
+
+# Otros
+*.lock
+*.log
+.metadata
