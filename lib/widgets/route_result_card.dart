@@ -50,6 +50,7 @@ class _RouteResultCardState extends State<RouteResultCard> {
 
     if (busSegment.type == SegmentType.bus && 
         busSegment.departureStopId != null && 
+        busSegment.busLines.isNotEmpty && 
         !_loadingRealtimeETAs) {
       setState(() {
         _loadingRealtimeETAs = true;
@@ -58,9 +59,12 @@ class _RouteResultCardState extends State<RouteResultCard> {
       // Cancelar stream anterior si existe
       _etaStreamSubscription?.cancel();
 
-      // Iniciar stream de actualizaciones en tiempo real
+      // Extraer número del stopId y iniciar stream
+      final stopId = busSegment.departureStopId!;
+      final numericStopId = stopId.contains(':') ? stopId.split(':').last : stopId;
+      
       _etaStreamSubscription = UnifiedETAService.streamETAsForStop(
-        stopId: busSegment.departureStopId!,
+        stopId: numericStopId,
         maxResults: 5,
       ).listen(
         (etas) {
@@ -104,23 +108,16 @@ class _RouteResultCardState extends State<RouteResultCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (widget.totalDuration != null || widget.totalDistance != null)
+                  if (widget.totalDuration != null && widget.totalDuration! > 0 || 
+                      widget.totalDistance != null && widget.totalDistance! > 0)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Row(
                         children: [
-                          if (widget.totalDuration != null) ...[
+                          if (widget.totalDuration != null && widget.totalDuration! > 0) ...[
                             Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
                             const SizedBox(width: 4),
                             Text('${widget.totalDuration!} min',
-                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.grey[700])),
-                          ],
-                          if (widget.totalDuration != null && widget.totalDistance != null)
-                            const SizedBox(width: 16),
-                          if (widget.totalDistance != null) ...[
-                            Icon(Icons.straighten, size: 16, color: Colors.grey[600]),
-                            const SizedBox(width: 4),
-                            Text('${(widget.totalDistance! / 1000).toStringAsFixed(1)} km',
                                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.grey[700])),
                           ],
                         ],
@@ -132,7 +129,10 @@ class _RouteResultCardState extends State<RouteResultCard> {
                         child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.start,
+                            mainAxisAlignment: widget.segments.any((s) => s.type == SegmentType.separator) 
+                                ? MainAxisAlignment.spaceEvenly 
+                                : MainAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
                             children: _buildRouteSegments(),
                           ),
                         ),
@@ -158,26 +158,78 @@ class _RouteResultCardState extends State<RouteResultCard> {
 
   List<Widget> _buildRouteSegments() {
     List<Widget> widgets = [];
+    final isCombinedRoute = widget.segments.any((s) => s.type == SegmentType.separator);
+    
     for (int i = 0; i < widget.segments.length; i++) {
       final segment = widget.segments[i];
-      widgets.add(_buildSegmentIcon(segment.type));
-      if (segment.type == SegmentType.bus) {
-        widgets.add(const SizedBox(width: 8));
-        widgets.add(_buildBusNumbers(segment.busLines));
-      }
-      if (i < widget.segments.length - 1) {
-        widgets.add(const SizedBox(width: 12));
-        widgets.add(const Icon(Icons.chevron_right, color: Colors.grey, size: 20));
-        widgets.add(const SizedBox(width: 12));
+      
+      if (segment.type == SegmentType.separator) {
+        widgets.add(_buildSegmentIcon(segment.type));
+      } else {
+        // Construir segmento - usar Expanded solo para tarjeta combinada
+        final segmentWidget = Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _buildSegmentIcon(segment.type),
+            if (segment.type == SegmentType.walk || segment.type == SegmentType.bicycle)
+              _buildAlternativeInfo(segment),
+          ],
+        );
+        
+        if (isCombinedRoute && (segment.type == SegmentType.walk || segment.type == SegmentType.bicycle)) {
+          widgets.add(Flexible(child: segmentWidget));
+        } else {
+          widgets.add(segmentWidget);
+        }
+        
+        if (segment.type == SegmentType.bus) {
+          widgets.add(const SizedBox(width: 8));
+          widgets.add(_buildBusNumbers(segment.busLines));
+        }
+        
+        if (i < widget.segments.length - 1 && widget.segments[i + 1].type != SegmentType.separator) {
+          widgets.add(const SizedBox(width: 12));
+          widgets.add(const Icon(Icons.chevron_right, color: Colors.grey, size: 20));
+          widgets.add(const SizedBox(width: 12));
+        }
       }
     }
     return widgets;
+  }
+  
+  Widget _buildAlternativeInfo(RouteSegment segment) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Column(
+        children: [
+          if (segment.duration != null)
+            Text(
+              '${segment.duration} min',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[700],
+              ),
+            ),
+          if (segment.distance != null && segment.distance! > 0)
+            Text(
+              '${(segment.distance! / 1000).toStringAsFixed(1)} km',
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.grey[600],
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   Widget _buildSegmentIcon(SegmentType type) {
     switch (type) {
       case SegmentType.walk:
         return Icon(Icons.directions_walk, color: Colors.grey[600], size: 24);
+      case SegmentType.bicycle:
+        return Icon(Icons.directions_bike, color: Colors.grey[600], size: 24);
       case SegmentType.bus:
         return Container(
           padding: const EdgeInsets.all(6),
@@ -188,22 +240,73 @@ class _RouteResultCardState extends State<RouteResultCard> {
           ),
           child: const Icon(Icons.directions_bus, color: Colors.black, size: 16),
         );
+      case SegmentType.separator:
+        return Container(
+          width: 1,
+          height: 60,
+          color: Colors.grey[300],
+          margin: const EdgeInsets.symmetric(horizontal: 8),
+        );
     }
   }
 
   Widget _buildBusNumbers(List<String> busLines) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: busLines.map((line) => Container(
-        margin: const EdgeInsets.only(right: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: Colors.grey[300]!, width: 1),
-        ),
-        child: Text(line, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87)),
-      )).toList(),
+    // Ordenar líneas por próximo arribo si hay datos de tiempo real
+    List<String> orderedLines = List.from(busLines);
+    
+    if (_realtimeETAs != null && _realtimeETAs!.isNotEmpty) {
+      final etasByLine = <String, int>{};
+      
+      for (final eta in _realtimeETAs!) {
+        if (busLines.contains(eta.routeShortName) && eta.minutesUntil > 0) {
+          if (!etasByLine.containsKey(eta.routeShortName) || 
+              eta.minutesUntil < etasByLine[eta.routeShortName]!) {
+            etasByLine[eta.routeShortName] = eta.minutesUntil;
+          }
+        }
+      }
+      
+      // Ordenar líneas por tiempo de próximo arribo
+      orderedLines.sort((a, b) {
+        final etaA = etasByLine[a] ?? 999;
+        final etaB = etasByLine[b] ?? 999;
+        return etaA.compareTo(etaB);
+      });
+    }
+    
+    // Mostrar máximo 3 líneas, con indicador si hay más
+    final displayLines = orderedLines.take(3).toList();
+    final hasMoreLines = orderedLines.length > 3;
+    
+    return Wrap(
+      spacing: 4,
+      children: [
+        ...displayLines.map((line) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: Colors.grey[300]!, width: 1),
+          ),
+          child: Text(line, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87)),
+        )),
+        if (hasMoreLines)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              '+${orderedLines.length - 3}',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[600],
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -311,13 +414,11 @@ class _RouteResultCardState extends State<RouteResultCard> {
   Widget _buildETAInformation() {
     final busSegment = widget.segments.firstWhere(
       (segment) => segment.type == SegmentType.bus && 
-                   segment.staticETAs != null && 
                    segment.departureStopName != null,
       orElse: () => RouteSegment(type: SegmentType.walk),
     );
 
     if (busSegment.type != SegmentType.bus || 
-        busSegment.staticETAs == null || 
         busSegment.departureStopName == null) {
       return const SizedBox.shrink();
     }
@@ -337,29 +438,50 @@ class _RouteResultCardState extends State<RouteResultCard> {
   Widget _buildDepartureInfo(RouteSegment busSegment) {
     final stopName = _formatStopName(busSegment.departureStopName!);
     
-    // Priorizar ETAs del backend si están disponibles
+    // Obtener orden de líneas como se muestran arriba
+    List<String> orderedLines = List.from(busSegment.busLines);
+    if (_realtimeETAs != null && _realtimeETAs!.isNotEmpty) {
+      final etasByLine = <String, int>{};
+      for (final eta in _realtimeETAs!) {
+        if (busSegment.busLines.contains(eta.routeShortName) && eta.minutesUntil > 0) {
+          if (!etasByLine.containsKey(eta.routeShortName) || 
+              eta.minutesUntil < etasByLine[eta.routeShortName]!) {
+            etasByLine[eta.routeShortName] = eta.minutesUntil;
+          }
+        }
+      }
+      orderedLines.sort((a, b) {
+        final etaA = etasByLine[a] ?? 999;
+        final etaB = etasByLine[b] ?? 999;
+        return etaA.compareTo(etaB);
+      });
+    }
+    
+    // Obtener ETAs en el MISMO ORDEN que las líneas mostradas
     List<int> displayETAs = [];
     bool hasRealtimeData = false;
     
     if (_realtimeETAs != null && _realtimeETAs!.isNotEmpty) {
-      // Usar ETAs del backend (tiempo real)
-      displayETAs = _realtimeETAs!
-          .where((eta) => busSegment.busLines.contains(eta.routeShortName))
-          .map((eta) => eta.minutesUntil)
-          .where((minutes) => minutes > 0)
-          .take(3)
-          .toList();
+      // Obtener próximo ETA para cada línea en orden
+      for (final line in orderedLines.take(3)) {
+        final lineETAs = _realtimeETAs!
+            .where((eta) => eta.routeShortName == line && eta.minutesUntil > 0)
+            .toList();
+        if (lineETAs.isNotEmpty) {
+          lineETAs.sort((a, b) => a.minutesUntil.compareTo(b.minutesUntil));
+          displayETAs.add(lineETAs.first.minutesUntil);
+        }
+      }
       hasRealtimeData = displayETAs.isNotEmpty;
     }
     
-    // Fallback a ETAs estáticos si no hay datos del backend
-    if (!hasRealtimeData && busSegment.staticETAs != null) {
-      final Set<int> allETAsSet = {};
-      for (final etas in busSegment.staticETAs!.values) {
-        allETAsSet.addAll(etas);
+    // Fallback a horario estático de OTP si no hay datos del backend
+    if (!hasRealtimeData && busSegment.departureTime != null) {
+      final now = DateTime.now();
+      final minutesUntil = busSegment.departureTime!.difference(now).inMinutes;
+      if (minutesUntil > 0 && minutesUntil <= 120) {
+        displayETAs.add(minutesUntil);
       }
-      displayETAs = allETAsSet.toList()..sort();
-      displayETAs = displayETAs.take(3).toList();
     }
     
     if (displayETAs.isEmpty) {
@@ -398,7 +520,7 @@ class _RouteResultCardState extends State<RouteResultCard> {
                 final isLast = index == displayETAs.length - 1;
                 return [
                   TextSpan(
-                    text: '$eta', 
+                    text: _formatETA(eta), 
                     style: TextStyle(
                       fontWeight: FontWeight.w600, 
                       color: hasRealtimeData ? const Color(0xFF388E3C) : Colors.black, // Verde si es tiempo real
@@ -407,37 +529,12 @@ class _RouteResultCardState extends State<RouteResultCard> {
                   if (!isLast) const TextSpan(text: ', ', style: TextStyle(color: Colors.grey)),
                 ];
               }),
-              const TextSpan(text: ' min desde ', style: TextStyle(color: Colors.grey)),
+              TextSpan(text: displayETAs.any((eta) => eta >= 60) ? ' desde ' : ' min desde ', style: const TextStyle(color: Colors.grey)),
               TextSpan(text: stopName, style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.black87)),
             ],
           ),
         ),
-        // Mostrar indicador de tiempo real si aplica
-        if (hasRealtimeData)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Row(
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF388E3C),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                const Text(
-                  'Tiempo real',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF388E3C),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
+
       ],
     );
   }
@@ -447,18 +544,23 @@ class _RouteResultCardState extends State<RouteResultCard> {
   String _formatStopName(String stopName) {
     if (stopName.isEmpty) return stopName;
     
-    String formatted = stopName.toLowerCase().trim().split(' ').map((word) {
+    // Normalizar separadores: cambiar " - " y " Y " por " y "
+    String normalized = stopName
+        .replaceAll(' - ', ' y ')
+        .replaceAll(' Y ', ' y ');
+    
+    String formatted = normalized.toLowerCase().trim().split(' ').map((word) {
       if (word.isEmpty) return word;
       if (RegExp(r'^\d+$').hasMatch(word)) return word;
       return word[0].toUpperCase() + word.substring(1);
     }).join(' ');
     
     formatted = formatted
-        .replaceAllMapped(RegExp(r'\b(y|de|del|la|el|las|los|en|con|por|para|desde|hasta)\b'), 
+        .replaceAllMapped(RegExp(r'\b(de|del|la|el|las|los|en|con|por|para|desde|hasta)\b'), 
             (match) => match.group(0)!)
-        .replaceAllMapped(RegExp(r'^(de|del|la|el|las|los|y|en|con)'), 
+        .replaceAllMapped(RegExp(r'^(de|del|la|el|las|los|en|con)'), 
             (match) => match.group(0)![0].toUpperCase() + match.group(0)!.substring(1))
-        .replaceAllMapped(RegExp(r'(\d+)\s+(de|del|la|el|las|los|y)'), 
+        .replaceAllMapped(RegExp(r'(\d+)\s+(de|del|la|el|las|los)'), 
             (match) => '${match.group(1)} ${match.group(2)![0].toUpperCase()}${match.group(2)!.substring(1)}');
     
     return formatted
@@ -474,7 +576,18 @@ class _RouteResultCardState extends State<RouteResultCard> {
         .replaceAll('ciudad vieja', 'Ciudad Vieja')
         .replaceAll('punta carretas', 'Punta Carretas')
         .replaceAll('parque rodó', 'Parque Rodó')
-        .replaceAll('parque batlle', 'Parque Batlle');
+        .replaceAll('parque batlle', 'Parque Batlle')
+        .replaceAll(' Y ', ' y ');
+  }
+
+  String _formatETA(int minutes) {
+    if (minutes < 60) {
+      return minutes.toString();
+    } else {
+      final hours = minutes ~/ 60;
+      final mins = minutes % 60;
+      return '${hours.toString().padLeft(2, '0')}:${mins.toString().padLeft(2, '0')}';
+    }
   }
 
   Color? _parseColor(String? colorString) {
@@ -497,9 +610,9 @@ class RouteSegment {
   final int? duration;
   final String? departureStopName;
   final String? departureStopId; // ID de la parada para consultar ETAs del backend
-  final Map<String, List<int>>? staticETAs;
   final DateTime? departureTime;
   final DateTime? arrivalTime;
+  final double? distance; // Distancia del segmento
   
   RouteSegment({
     required this.type,
@@ -507,13 +620,13 @@ class RouteSegment {
     this.duration,
     this.departureStopName,
     this.departureStopId,
-    this.staticETAs,
     this.departureTime,
     this.arrivalTime,
+    this.distance,
   });
 }
 
-enum SegmentType { walk, bus }
+enum SegmentType { walk, bus, bicycle, separator }
 
 class BusRouteDetails {
   final String busLine;

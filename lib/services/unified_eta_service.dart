@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:timezone/timezone.dart' as tz;
-import 'static_eta_service.dart';
 import 'realtime_interest_service.dart';
 
 /// Servicio unificado que combina ETAs estáticos (GTFS) y en tiempo real (STM + OTP)
@@ -123,7 +122,7 @@ class UnifiedETAService {
     
     final String graphqlQuery = '''
     {
-      stop(id: "$stopId") {
+      stop(id: "STM-MVD:$stopId") {
         name
         code
         stoptimesForServiceDate(date: "${_formatDate(queryDate)}") {
@@ -387,9 +386,7 @@ class UnifiedETA {
     }
   }
 
-  /// Tiempo formateado
-  String get formattedTime => StaticETAService.formatArrivalTime(departureTime);
-  
+
   /// Minutos formateados
   String get formattedMinutes {
     if (minutesUntil <= 0) return 'Llegando';

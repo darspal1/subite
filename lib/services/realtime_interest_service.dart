@@ -34,25 +34,14 @@ class RealtimeInterestService {
           .toSet()
           .toList();
 
-      print('🔍 DEBUG: Intentando registrar interés...');
-      print('📍 Líneas originales: ${lines.toSet()}');
-      print('📍 Líneas filtradas: ${cleanLines.toSet()}');
-      print('🚏 Paradas extraídas: ${cleanStops.toSet()}');
-      
       if (cleanLines.isEmpty && cleanStops.isEmpty) {
-        print('⚠️ No hay líneas o paradas válidas para registrar');
         return false;
       }
-      
-      print('🌐 Enviando registro de interés a: $_proxyBaseUrl/register-interest');
-      print('📋 Datos: lines=$cleanLines, stops=$cleanStops');
       
       final requestBody = json.encode({
         'lines': cleanLines,
         'stops': cleanStops,
       });
-      
-      print('📦 JSON enviado: $requestBody');
       
       final response = await http.post(
         Uri.parse('$_proxyBaseUrl/register-interest'),
@@ -63,18 +52,12 @@ class RealtimeInterestService {
         body: requestBody,
       );
 
-      print('📡 Respuesta del servidor: ${response.statusCode}');
-      print('📄 Cuerpo de respuesta: ${response.body}');
-
       if (response.statusCode == 200) {
-        print('✅ Interés registrado exitosamente para ${cleanLines.length} líneas y ${cleanStops.length} paradas');
         return true;
       } else {
-        print('❌ Error al registrar interés: ${response.statusCode} - ${response.body}');
         return false;
       }
     } catch (e) {
-      print('💥 Error de conexión al registrar interés: $e');
       return false;
     }
   }

@@ -329,7 +329,7 @@ class _UnifiedETAWidgetState extends State<UnifiedETAWidget> {
                 ),
               ),
               Text(
-                eta.formattedTime,
+                '${eta.departureTime.hour.toString().padLeft(2, '0')}:${eta.departureTime.minute.toString().padLeft(2, '0')}',
                 style: const TextStyle(
                   fontSize: 12,
                   color: Colors.grey,

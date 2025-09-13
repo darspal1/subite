@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:timezone/data/latest.dart' as tz;
 import 'widgets/places_autocomplete_field.dart';
 import 'services/places_service.dart';
 import 'services/geocoding_service.dart';
-import 'services/static_eta_service.dart';
 import 'screens/route_search_results_screen.dart';
 
 void main() {
-  // Inicializar el servicio de timezone para ETAs estáticos
-  StaticETAService.initialize();
+  // Inicializar timezone database
+  tz.initializeTimeZones();
   
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     systemNavigationBarColor: Color(0xFF0A1639), // bottom bar color

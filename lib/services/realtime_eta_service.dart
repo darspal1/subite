@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:timezone/timezone.dart' as tz;
-import 'static_eta_service.dart';
 import 'otp_service.dart';
 
 class RealtimeETAService {
@@ -83,7 +82,7 @@ class RealtimeETAService {
         toLat: toLat,
         toLon: toLon,
         dateTime: dateTime,
-        registerRealtimeInterest: false, // Ya registrado anteriormente
+        // Ya registrado anteriormente
       );
 
       // Convertir a ETAs en tiempo real
@@ -206,7 +205,7 @@ class RealtimeETA {
     );
   }
 
-  String get formattedTime => StaticETAService.formatArrivalTime(departureTime);
+  String get formattedTime => '${departureTime.hour.toString().padLeft(2, '0')}:${departureTime.minute.toString().padLeft(2, '0')}';
   
   String get formattedMinutes {
     if (minutesUntil <= 0) return 'Llegando';
