@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class PlacesService {
-  static const String _apiKey = 'AIzaSyDvSmbzjHJawciAvTXiNC8n0MHlN5lHBfY';
+  static const String _apiKey = '';
   static const String _baseUrl = 'https://maps.googleapis.com/maps/api/place';
   
   // Coordenadas de Montevideo para filtrar resultados
